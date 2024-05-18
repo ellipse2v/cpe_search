@@ -7,7 +7,7 @@ Search for Common Platform Enumeration (CPE) strings using software names and ti
 ## Usage
 *cpe_search*'s usage information is shown in the following:
 ```
-usage: cpe_search.py [-h] [-u] [-k API_KEY] [-c COUNT] [-q QUERY] [-v]
+usage: cpe_search.py [-h] [-u] [-k API_KEY] [-n NUMBER] [-q QUERY] [-v] [-c CONFIG]
 
 Search for CPEs using software names and titles -- Created by Dustin Born (ra1nb0rn)
 
@@ -16,11 +16,13 @@ optional arguments:
   -u, --update          Update the local CPE database
   -k API_KEY, --api-key API_KEY
                         NVD API key to use for updating the local CPE dictionary
-  -c COUNT, --count COUNT
+  -n NUMBER, --number NUMBER
                         The number of CPEs to show in the similarity overview (default: 3)
   -q QUERY, --query QUERY
                         A query, i.e. textual software name / title like 'Apache 2.4.39' or 'Wordpress 5.7.2'
   -v, --verbose         Be verbose and print status information
+  -c CONFIG, --config CONFIG
+                        A config file to use (default: config.json)
 ```
 Note that when querying software with ``-q`` you have to put the software information in quotes if it contains any spaces. Also, you can use ``-q`` multiple times to make multiple queries at once. Moreover, the output can be piped to be directly useable with other tools. Here are some examples:
 * Query *Sudo 1.8.2* to retrieve its CPE 2.3 string:
