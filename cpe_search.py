@@ -9,6 +9,10 @@ import re
 import string
 import sys
 import time
+import asyncio
+import aiohttp
+from aiolimiter import AsyncLimiter
+import requests
 
 try:  # use ujson if available
     import ujson as json
@@ -111,7 +115,7 @@ async def api_request(headers, params, requestno):
     retry_limit = 3
     retry_interval = 6
     for _ in range(retry_limit + 1):
-        async with aiohttp.ClientSession() as session:
+        async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=False)) as session:
             try:
                 cpe_api_data_response = await session.get(url=CPE_API_URL, headers=headers, params=params)
                 if cpe_api_data_response.status == 200:
@@ -318,13 +322,6 @@ async def worker(headers, params, requestno, rate_limit):
 
 async def update(nvd_api_key=None, config=None):
     '''Pulls current CPE data via the CPE API for an initial database build'''
-
-    # import required modules in case they haven't been imported yet
-    global asyncio, aiohttp, AsyncLimiter, requests
-    import asyncio
-    import aiohttp
-    from aiolimiter import AsyncLimiter
-    import requests
 
     if not SILENT:
         print("[+] Getting NVD's official CPE data (might take some time)")
@@ -606,7 +603,15 @@ def _get_alternative_queries(init_queries):
         if version_match:
             alt_queries_mapping[query].append(query.replace(version_match.group(0), version_match.group(0) + '.0'))
             alt_queries_mapping[query].append(query.replace(version_match.group(0), version_match.group(0) + '.0.0'))
-
+    
+        if "+" in query:
+            words_query = query.split("+")
+            for word in words_query:
+                alt_queries_mapping[query].append(word)
+	
+    print("queries mapping")
+    #SRI
+    print(alt_queries_mapping)
     return alt_queries_mapping
 
 
@@ -691,7 +696,7 @@ def _search_cpes(queries_raw, count, threshold, config=None):
             cpe_infos = db_cursor.fetchall()
         all_cpe_infos += cpe_infos
         remaining -= max_results_per_query
-
+	
     # same order needed for test repeatability
     if os.environ.get('IS_CPE_SEARCH_TEST', 'false') == 'true':
         all_cpe_infos = sorted(all_cpe_infos)
@@ -730,6 +735,8 @@ def _search_cpes(queries_raw, count, threshold, config=None):
 
             cpe_base = ':'.join(cpe.split(':')[:5]) + ':'
             cpe_class = cpe_base + '-' + str(10 - sum(cpe_field in ('*', '-', '') for cpe_field in cpe.split(':')))
+            # SRI
+            #print(most_similar)
             if cpe_class not in most_similar[query] or sim_score > most_similar[query][cpe_class][1]:
                 most_similar[query][cpe_class] = (cpe, sim_score)
 
@@ -784,6 +791,8 @@ def _search_cpes(queries_raw, count, threshold, config=None):
                         unified_most_similar |= set(intermediate_results.get(alt_query, []))
 
             results[query_raw] = sorted(unified_most_similar, key=lambda entry: (-entry[1], entry[0]))
+            #SRI
+            print(result)
 
     # only return the number of requested CPEs for final results
     if count != -1:
@@ -913,6 +922,7 @@ def is_versionless_query(query):
     version_str_match = VERSION_MATCH_CPE_CREATION_RE.search(query)
     if not version_str_match:
         return True
+    print("is_versionless_query")
     return False
 
 
@@ -1079,10 +1089,6 @@ if __name__ == "__main__":
         perform_update = True
 
     if perform_update:
-        import asyncio
-        import aiohttp
-        from aiolimiter import AsyncLimiter
-        import requests
 
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
