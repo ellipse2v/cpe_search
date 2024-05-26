@@ -846,7 +846,16 @@ def _search_cpes(queries_raw, count, threshold, config=None):
     # create final results
     results = {}
     # create final results
-
+    """
+    the function handles two types of queries: those that contain a "+" symbol and those that do not. 
+    For queries that contain a "+", the function splits the query into sub-queries and processes each sub-query individually.
+    For queries that do not contain a "+", the function checks if the query or its alternative queries exist in the intermediate results.
+    In both cases, the function uses a dictionary to store the elements and their maximum probabilities.
+    If an element is already in the dictionary and its probability is less than the new probability, 
+    the function updates the probability. If the element is not in the dictionary,
+    the function adds it. The dictionary is then converted into a list of tuples for the most similar unified format.
+    The results are sorted based on the probability and the CPE name, and added to the final results dictionary.
+    """
     for query_raw in queries_raw:
         # Check if the raw query contains a "+"
         if "+" in query_raw:
@@ -856,11 +865,12 @@ def _search_cpes(queries_raw, count, threshold, config=None):
             unified_most_similar = set()
             for sub_query_raw in sub_queries_raw:
                 query = sub_query_raw.lower()
-
+                # Check if the sub-query or its alternative queries exist in the intermediate results
                 if query not in intermediate_results and (query not in alt_queries_mapping or not alt_queries_mapping[query]):
                     continue
 
                 for alt_query in sub_queries_raw:
+                    # If the alternative query is not the same as the sub-query, add the results to a set of most similar CPEs
                     if alt_query != query:
                         unified_most_similar |= set(intermediate_results.get(alt_query, []))
 
