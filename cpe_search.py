@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
-from collections import Counter
-import math
-import os
+
 import pprint
 import re
 import string
@@ -24,7 +22,6 @@ try:
     from database_wrapper_functions import *
 except:
     from .database_wrapper_functions import *
-
 
 # Constants
 SCRIPT_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -48,29 +45,41 @@ UPDATE_SUCCESS = True
 SILENT = True
 DEBUG = False
 CPE_CREATION_DEL_SYMBOLS_RE = re.compile(r'[\]"\|{>)/`<#},\[\:(=;^\'%]')
-POPULAR_QUERY_CORRECTIONS = {'flask': 'palletsprojects', 'keycloak': 'redhat red hat', 'rabbitmq': 'vmware', 'bootstrap': 'getbootstrap',
-                             'kotlin': 'jetbrains', 'spring boot': 'vmware', 'debian': 'linux', 'ansible': 'redhat', 'twig': 'symfony',
-                             'proxmox ve': 'virtual environment', 'nextjs': 'vercel', 'next.js': 'vercel', 'ubuntu': 'linux',
+POPULAR_QUERY_CORRECTIONS = {'flask': 'palletsprojects', 'keycloak': 'redhat red hat', 'rabbitmq': 'vmware',
+                             'bootstrap': 'getbootstrap',
+                             'kotlin': 'jetbrains', 'spring boot': 'vmware', 'debian': 'linux', 'ansible': 'redhat',
+                             'twig': 'symfony',
+                             'proxmox ve': 'virtual environment', 'nextjs': 'vercel', 'next.js': 'vercel',
+                             'ubuntu': 'linux',
                              'symfony': 'sensiolabs', 'electron': 'electronjs', 'microsoft exchange': 'server'}
-QUERY_ABBREVIATIONS = {'adc': (['citrix'], 'application delivery controller'), 'omsa': (['dell'], 'openmanage server administrator'),
-                       'cdk': (['amazon', 'aws'], 'aws cdk cloud development kit'), 'srm': (['vmware'], 'site recovery manager'),
+QUERY_ABBREVIATIONS = {'adc': (['citrix'], 'application delivery controller'),
+                       'omsa': (['dell'], 'openmanage server administrator'),
+                       'cdk': (['amazon', 'aws'], 'aws cdk cloud development kit'),
+                       'srm': (['vmware'], 'site recovery manager'),
                        'paloaltonetworks': ([], 'palo alto networks'), 'palo alto networks': ([], 'paloaltonetworks'),
                        'trend micro': ([], 'trendmicro'), 'ds': (['trend', 'micro'], 'deep security'),
-                       'dsa': (['trend', 'micro'], 'deep security agent'), 'dsm': (['trend', 'micro'], 'deep security manager')}
+                       'dsa': (['trend', 'micro'], 'deep security agent'),
+                       'dsm': (['trend', 'micro'], 'deep security manager')}
 
 
 def parse_args():
     """Parse command line arguments"""
-
-    parser = argparse.ArgumentParser(description="Search for CPEs using software names and titles -- Created by Dustin Born (ra1nb0rn)")
+    # Create an ArgumentParser object
+    parser = argparse.ArgumentParser(
+        description="Search for CPEs using software names and titles -- Created by Dustin Born (ra1nb0rn)")
+    # Define the arguments that can be passed to the script
     parser.add_argument("-u", "--update", action="store_true", help="Update the local CPE database")
     parser.add_argument("-k", "--api-key", type=str, help="NVD API key to use for updating the local CPE dictionary")
-    parser.add_argument("-n", "--number", default=3, type=int, help="The number of CPEs to show in the similarity overview (default: 3)")
-    parser.add_argument("-q", "--query", dest="queries", metavar="QUERY", action="append", help="A query, i.e. textual software name / title like 'Apache 2.4.39' or 'Wordpress 5.7.2'")
+    parser.add_argument("-n", "--number", default=3, type=int,
+                        help="The number of CPEs to show in the similarity overview (default: 3)")
+    parser.add_argument("-q", "--query", dest="queries", metavar="QUERY", action="append",
+                        help="A query, i.e. textual software name / title like 'Apache 2.4.39' or 'Wordpress 5.7.2'")
     parser.add_argument("-v", "--verbose", action="store_true", help="Be verbose and print status information")
-    parser.add_argument("-c", "--config", type=str, default=DEFAULT_CONFIG_FILE, help="A config file to use (default: config.json)")
+    parser.add_argument("-c", "--config", type=str, default=DEFAULT_CONFIG_FILE,
+                        help="A config file to use (default: config.json)")
 
     args = parser.parse_args()
+    # If no arguments were passed, print the help message
     if not args.update and not args.queries:
         parser.print_help()
     return args
@@ -124,7 +133,8 @@ async def api_request(headers, params, requestno):
                     return await cpe_api_data_response.json()
                 else:
                     if DEBUG:
-                        print(f"[-] Received status code {cpe_api_data_response.status} on request {requestno} Retrying...")
+                        print(
+                            f"[-] Received status code {cpe_api_data_response.status} on request {requestno} Retrying...")
                 await asyncio.sleep(retry_interval)
             except Exception as e:
                 if UPDATE_SUCCESS and not SILENT:
@@ -151,7 +161,7 @@ def intermediate_process(api_data, requestno):
             if title['lang'] == 'en':
                 extracted_title = title['title']
         if deprecated:
-            deprecated_by = {cpe_name:[]}
+            deprecated_by = {cpe_name: []}
             for item in product['cpe']['deprecatedBy']:
                 deprecated_by[cpe_name].append(item.get('cpeName'))
             deprecations.append(deprecated_by)
@@ -192,7 +202,7 @@ def compute_cpe_entry_tf_norm(cpe, name=''):
         elif term in word_weights_cpe_name:
             cpe_tf[term] *= word_weights_cpe_name[term]
 
-    cpe_abs = math.sqrt(sum([cnt**2 for cnt in cpe_tf.values()]))
+    cpe_abs = math.sqrt(sum([cnt ** 2 for cnt in cpe_tf.values()]))
     return cpe_tf, cpe_abs
 
 
@@ -230,7 +240,7 @@ def add_cpes_to_db(cpe_infos, config, check_duplicates=True):
         # insert unconditionally if fresh build, otherwise ensure entry doesn't exist yet
         do_insert = cur_max_eid == 0
         if check_duplicates and not do_insert:
-            db_cursor.execute('SELECT * FROM cpe_entries where cpe = ?', (cpe_info[0], ))
+            db_cursor.execute('SELECT * FROM cpe_entries where cpe = ?', (cpe_info[0],))
             do_insert = not bool(db_cursor.fetchone())
 
         if not check_duplicates or do_insert:
@@ -256,7 +266,7 @@ def add_cpes_to_db(cpe_infos, config, check_duplicates=True):
         entry_ids_str = str(entry_ids[0])
         while i < len(entry_ids):
             start_i = i
-            while (i < len(entry_ids) - 1) and entry_ids[i] + 1 == entry_ids[i+1]:
+            while (i < len(entry_ids) - 1) and entry_ids[i] + 1 == entry_ids[i + 1]:
                 i += 1
             if start_i == i:
                 entry_ids_str += ',%d' % entry_ids[i]
@@ -265,7 +275,7 @@ def add_cpes_to_db(cpe_infos, config, check_duplicates=True):
             i += 1
 
         # check if term already exists in DB and if so add previous entry IDs
-        db_cursor.execute('SELECT entry_ids FROM terms_to_entries where term = ?', (term, ))
+        db_cursor.execute('SELECT entry_ids FROM terms_to_entries where term = ?', (term,))
         prev_entry_ids = db_cursor.fetchone()
         do_insert = True
         if prev_entry_ids:
@@ -322,18 +332,20 @@ async def worker(headers, params, requestno, rate_limit):
 
 async def update(nvd_api_key=None, config=None):
     '''Pulls current CPE data via the CPE API for an initial database build'''
-
+    # Print a status message
     if not SILENT:
         print("[+] Getting NVD's official CPE data (might take some time)")
-
+    # Load the configuration if it wasn't passed as an argument
     if not config:
         config = _load_config()
 
+    # Get the NVD API key from the environment variables if it wasn't passed as an argument
     if not nvd_api_key:
         nvd_api_key = os.getenv('NVD_API_KEY')
         if (not nvd_api_key) and config:
             nvd_api_key = config.get('NVD_API_KEY', None)
 
+    # Set the rate limit and headers based on whether an API key is available
     if nvd_api_key:
         if not SILENT:
             print('[+] API Key found - Requests will be sent at a rate of 25 per 30s.')
@@ -341,7 +353,8 @@ async def update(nvd_api_key=None, config=None):
         headers = {'apiKey': nvd_api_key}
     else:
         if not SILENT:
-            print('[-] No API Key found - Requests will be sent at a rate of 5 per 30s. To lower build time, consider getting an NVD API Key.')
+            print(
+                '[-] No API Key found - Requests will be sent at a rate of 5 per 30s. To lower build time, consider getting an NVD API Key.')
         rate_limit = AsyncLimiter(5.0, 30.0)
         headers = {}
 
@@ -367,7 +380,7 @@ async def update(nvd_api_key=None, config=None):
     # make necessary amount of API requests to pull all CPE data
     requestno = 0
     tasks = []
-    while(offset <= numTotalResults):
+    while (offset <= numTotalResults):
         requestno += 1
         params = {'resultsPerPage': API_CPE_RESULTS_PER_PAGE, 'startIndex': offset}
         task = asyncio.ensure_future(worker(headers=headers, params=params, requestno=requestno, rate_limit=rate_limit))
@@ -419,7 +432,8 @@ async def update(nvd_api_key=None, config=None):
     # add CPE infos to DB
     terms_to_entries = {}
     for i, cpe_info in enumerate(cpe_infos):
-        db_cursor.execute('INSERT INTO cpe_entries VALUES (?, ?, ?, ?)', (i, cpe_info[0], json.dumps(cpe_info[1]), cpe_info[2]))
+        db_cursor.execute('INSERT INTO cpe_entries VALUES (?, ?, ?, ?)',
+                          (i, cpe_info[0], json.dumps(cpe_info[1]), cpe_info[2]))
         for term in cpe_info[1]:
             if term not in terms_to_entries:
                 terms_to_entries[term] = []
@@ -437,7 +451,7 @@ async def update(nvd_api_key=None, config=None):
         entry_ids_str = str(entry_ids[0])
         while i < len(entry_ids):
             start_i = i
-            while (i < len(entry_ids) - 1) and entry_ids[i] + 1 == entry_ids[i+1]:
+            while (i < len(entry_ids) - 1) and entry_ids[i] + 1 == entry_ids[i + 1]:
                 i += 1
             if start_i == i:
                 entry_ids_str += ',%d' % entry_ids[i]
@@ -458,7 +472,8 @@ async def update(nvd_api_key=None, config=None):
             for deprecation in task.result()[1]:
                 deprecated_cpe = list(deprecation)[0]
                 if deprecated_cpe in final_deprecations:
-                    final_deprecations[deprecated_cpe] = list(set(final_deprecations[deprecated_cpe] + deprecation[deprecated_cpe]))
+                    final_deprecations[deprecated_cpe] = list(
+                        set(final_deprecations[deprecated_cpe] + deprecation[deprecated_cpe]))
                 else:
                     final_deprecations[deprecated_cpe] = deprecation[deprecated_cpe]
         outfile.write('%s\n' % json.dumps(final_deprecations))
@@ -482,8 +497,22 @@ def get_possible_versions_in_query(query):
 
 
 def _get_alternative_queries(init_queries):
+    """
+    This function generates alternative queries based on the initial queries provided.
+    The purpose of these alternative queries is to improve the retrieval of relevant results.
+
+    Parameters:
+    init_queries (list): A list of initial queries.
+
+    Returns:
+    alt_queries_mapping (dict): A dictionary where each key is an initial query and the value is a list of alternative queries.
+    """
+    # Create a dictionary to store the alternative queries for each initial query
     alt_queries_mapping = {}
+
+    # Iterate over each initial query
     for query in init_queries:
+        # Initialize an empty list to store the alternative queries for the current initial query
         alt_queries_mapping[query] = []
 
         # replace 'httpd' with 'http' e.g. for Apache HTTP Server
@@ -524,8 +553,8 @@ def _get_alternative_queries(init_queries):
                 word = word.strip()
                 new_query_words1, new_query_words2 = [], []
                 if word == 'js' and i > 0:
-                    new_query_words1 = query_words[:i-1] + [query_words[i-1] + 'js']
-                    new_query_words2 = query_words[:i-1] + [query_words[i-1] + '.js']
+                    new_query_words1 = query_words[:i - 1] + [query_words[i - 1] + 'js']
+                    new_query_words2 = query_words[:i - 1] + [query_words[i - 1] + '.js']
                 elif word.endswith('.js') or word.endswith('js'):
                     if i > 0:
                         new_query_words1 += query_words[:i]
@@ -539,8 +568,8 @@ def _get_alternative_queries(init_queries):
 
                 if new_query_words1:
                     if i < len(query_words) - 1:
-                        new_query_words1 += query_words[i+1:]
-                        new_query_words2 += query_words[i+1:]
+                        new_query_words1 += query_words[i + 1:]
+                        new_query_words2 += query_words[i + 1:]
                     alt_queries.append(' '.join(new_query_words1))
                     alt_queries.append(' '.join(new_query_words2))
 
@@ -577,7 +606,7 @@ def _get_alternative_queries(init_queries):
                         int(char)
                         cur_char_class = '0123456789'
                     except ValueError:
-                        cur_char_class = '!"#$%&\'()*+,-./:;<=>?@[\]^_`{|}~'
+                        cur_char_class = '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~'
             pot_alt_query += char
 
         pot_alt_query_parts = pot_alt_query.split()
@@ -603,21 +632,37 @@ def _get_alternative_queries(init_queries):
         if version_match:
             alt_queries_mapping[query].append(query.replace(version_match.group(0), version_match.group(0) + '.0'))
             alt_queries_mapping[query].append(query.replace(version_match.group(0), version_match.group(0) + '.0.0'))
-    
-        if "+" in query:
-            words_query = query.split("+")
-            for word in words_query:
-                alt_queries_mapping[query].append(word)
-	
-    print("queries mapping")
-    #SRI
-    print(alt_queries_mapping)
     return alt_queries_mapping
 
+from collections import Counter
+import math
+
+def compute_term_frequencies_and_normalization_factor(query):
+    # Split the query into words
+    words = query.split()
+
+    # Compute term frequencies
+    term_frequencies = Counter(words)
+
+    # Compute normalization factor
+    normalization_factor = math.sqrt(sum(freq**2 for freq in term_frequencies.values()))
+
+    return term_frequencies, normalization_factor
 
 def _search_cpes(queries_raw, count, threshold, config=None):
-    """Facilitate CPE search as specified by the program arguments"""
+    """
+    This function facilitates the search for Common Platform Enumeration (CPE) names based on the provided queries.
 
+    Parameters:
+    queries_raw (list): A list of raw queries to search for.
+    count (int): The number of CPEs to return for each query.
+    threshold (float): The similarity threshold for considering a CPE as a match.
+    config (dict, optional): A configuration dictionary. If not provided, the function will load the default configuration.
+
+    Returns:
+    results (dict): A dictionary where each key is a query and the value is a list of matching CPEs.
+    """
+    # Load the configuration if it wasn't passed as an argument
     if not config:
         config = _load_config()
 
@@ -629,29 +674,57 @@ def _search_cpes(queries_raw, count, threshold, config=None):
     for alt_queries in alt_queries_mapping.values():
         queries += alt_queries
 
+    # Initialize dictionaries to store query information and most similar CPEs
     query_infos = {}
     most_similar = {}
     all_query_words = set()
     included_word_sets = {}
-    for query in queries:
-        words_query = TEXT_TO_VECTOR_RE.findall(query)
-        if words_query in included_word_sets.values():
-            continue
-        included_word_sets[query] = words_query
-        word_weights_query = {}
-        for i, word in enumerate(words_query):
-            if word not in word_weights_query:
-                word_weights_query[word] = math.exp(QUERY_TERM_WEIGHT_EXP_FACTOR * i)
 
-        # compute query's cosine vector for similarity comparison
-        query_tf = Counter(words_query)
-        for term, tf in query_tf.items():
-            query_tf[term] = word_weights_query[term] * (tf / len(query_tf))
-        all_query_words |= set(query_tf.keys())
-        query_abs = math.sqrt(sum([cnt**2 for cnt in query_tf.values()]))
-        query_infos[query] = (query_tf, query_abs)
-        most_similar[query] = {}
-    queries = list(included_word_sets.keys())
+    # Compute term frequencies and normalization factors for each query
+    for query in queries:
+        # Check if the query contains a "+"
+        if "+" in query:
+            # Split the query into two sub-queries
+            sub_queries = query.split("+")
+            # Search for CPEs for each sub-query
+            for sub_query in sub_queries:
+                # Check if the sub-query has already been processed
+                if sub_query in included_word_sets.values():
+                    continue
+                # Store the sub-query in the included word sets
+                included_word_sets[sub_query] = sub_query
+                # Compute the term frequencies and normalization factors for the sub-query
+                word_weights_sub_query = {}
+                words_sub_query = TEXT_TO_VECTOR_RE.findall(sub_query)
+                for i, word in enumerate(words_sub_query):
+                    if word not in word_weights_sub_query:
+                        word_weights_sub_query[word] = math.exp(QUERY_TERM_WEIGHT_EXP_FACTOR * i)
+                # Compute the cosine vector for the sub-query
+                sub_query_tf = Counter(words_sub_query)
+                for term, tf in sub_query_tf.items():
+                    sub_query_tf[term] = word_weights_sub_query[term] * (tf / len(sub_query_tf))
+                all_query_words |= set(sub_query_tf.keys())
+                query_abs = math.sqrt(sum([cnt ** 2 for cnt in sub_query_tf.values()]))
+                query_infos[sub_query] = (sub_query_tf, query_abs)
+                most_similar[sub_query] = {}
+        else :
+            words_query = TEXT_TO_VECTOR_RE.findall(query)
+            if words_query in included_word_sets.values():
+                continue
+            included_word_sets[query] = words_query
+            word_weights_query = {}
+            for i, word in enumerate(words_query):
+               if word not in word_weights_query:
+                   word_weights_query[word] = math.exp(QUERY_TERM_WEIGHT_EXP_FACTOR * i)
+            # compute query's cosine vector for similarity comparison
+            query_tf = Counter(words_query)
+            for term, tf in query_tf.items():
+                query_tf[term] = word_weights_query[term] * (tf / len(query_tf))
+            all_query_words |= set(query_tf.keys())
+            query_abs = math.sqrt(sum([cnt ** 2 for cnt in query_tf.values()]))
+            query_infos[query] = (query_tf, query_abs)
+            most_similar[query] = {}
+        queries = list(included_word_sets.keys())
 
     # set up DB connector
     conn = get_database_connection(config['DATABASE'], config['DATABASE_NAME'])
@@ -662,7 +735,7 @@ def _search_cpes(queries_raw, count, threshold, config=None):
     for word in all_query_words:
         # query can only return one result, b/c term is PK
         db_query = 'SELECT entry_ids FROM terms_to_entries WHERE term = ?'
-        db_cursor.execute(db_query, (word, ))
+        db_cursor.execute(db_query, (word,))
         if not db_cursor:
             continue
 
@@ -675,7 +748,7 @@ def _search_cpes(queries_raw, count, threshold, config=None):
         for eid in cpe_entry_ids[1:]:
             if '-' in eid:
                 eid = eid.split('-')
-                all_cpe_entry_ids += list(range(int(eid[0]), int(eid[1])+1))
+                all_cpe_entry_ids += list(range(int(eid[0]), int(eid[1]) + 1))
             else:
                 all_cpe_entry_ids.append(int(eid))
 
@@ -690,17 +763,16 @@ def _search_cpes(queries_raw, count, threshold, config=None):
         param_in_str = ('?,' * count_params_in_str)[:-1]
 
         db_query = 'SELECT cpe, term_frequencies, abs_term_frequency FROM cpe_entries WHERE entry_id IN (%s)' % param_in_str
-        db_cursor.execute(db_query, all_cpe_entry_ids[remaining-count_params_in_str:remaining])
+        db_cursor.execute(db_query, all_cpe_entry_ids[remaining - count_params_in_str:remaining])
         cpe_infos = []
         if db_cursor:
             cpe_infos = db_cursor.fetchall()
         all_cpe_infos += cpe_infos
         remaining -= max_results_per_query
-	
+
     # same order needed for test repeatability
     if os.environ.get('IS_CPE_SEARCH_TEST', 'false') == 'true':
         all_cpe_infos = sorted(all_cpe_infos)
-
     # Search Idea: Divide and Conquer
     # Divide all CPEs into a dict of CPE classes where only the most similar
     # CPE for every class is stored. In the end, unify all of these most similar
@@ -728,15 +800,14 @@ def _search_cpes(queries_raw, count, threshold, config=None):
             if not normalization_factor:  # avoid divison by 0
                 continue
 
-            sim_score = float(inner_product)/float(normalization_factor)
+            sim_score = float(inner_product) / float(normalization_factor)
 
             if threshold > 0 and sim_score < threshold:
                 continue
 
             cpe_base = ':'.join(cpe.split(':')[:5]) + ':'
             cpe_class = cpe_base + '-' + str(10 - sum(cpe_field in ('*', '-', '') for cpe_field in cpe.split(':')))
-            # SRI
-            #print(most_similar)
+
             if cpe_class not in most_similar[query] or sim_score > most_similar[query][cpe_class][1]:
                 most_similar[query][cpe_class] = (cpe, sim_score)
 
@@ -774,25 +845,92 @@ def _search_cpes(queries_raw, count, threshold, config=None):
 
     # create final results
     results = {}
+    # create final results
+
     for query_raw in queries_raw:
-        query = query_raw.lower()
-
-        if query not in intermediate_results and (query not in alt_queries_mapping or not alt_queries_mapping[query]):
-            continue
-
-        if query not in alt_queries_mapping or not alt_queries_mapping[query]:
-            results[query_raw] = intermediate_results[query]
-        else:
+        # Check if the raw query contains a "+"
+        if "+" in query_raw:
+            # Split the raw query into two sub-queries
+            sub_queries_raw = query_raw.split("+")
+            # Process each sub-query individually
             unified_most_similar = set()
-            if most_similar[query]:
-                unified_most_similar = set(intermediate_results[query])
-                for alt_query in alt_queries_mapping[query]:
+            for sub_query_raw in sub_queries_raw:
+                query = sub_query_raw.lower()
+
+                if query not in intermediate_results and (query not in alt_queries_mapping or not alt_queries_mapping[query]):
+                    continue
+
+                for alt_query in sub_queries_raw:
                     if alt_query != query:
                         unified_most_similar |= set(intermediate_results.get(alt_query, []))
 
-            results[query_raw] = sorted(unified_most_similar, key=lambda entry: (-entry[1], entry[0]))
-            #SRI
-            print(result)
+            # Create a dictionary to store the elements and their maximum probabilities
+            max_prob_dict = {}
+
+            for element, prob in unified_most_similar:
+                # If the element is already in the dictionary and its probability is less than
+                # the new probability, update the probability
+                if element in max_prob_dict and max_prob_dict[element] < prob:
+                    max_prob_dict[element] = prob
+                # If the element is not in the dictionary, add it
+                elif element not in max_prob_dict:
+                    max_prob_dict[element] = prob
+
+            # Convert the dictionary into a list of tuples for the most similar unified format
+            unified_most_similar = list(max_prob_dict.items())
+            unified_most_similar_final = set()
+            split_queries = []
+            # need to increase the probability with the version
+            for query in sub_queries_raw:
+                plus_split = query.split('+')
+                for item in plus_split:
+                    split_queries.extend(item.split(' '))
+
+            for sub_query_raw in split_queries:
+                query = sub_query_raw.lower()
+                unified_most_similar_final = set()
+                # Check if all sub-queries are in the same CPE
+                for cpe in unified_most_similar:
+                    if query in cpe[0]:
+                        most_similar = [(cpe[0], cpe[1] * 1.3)]
+                        unified_most_similar_tempo = set(most_similar)
+                        unified_most_similar_final |= unified_most_similar_tempo
+                    else:
+                        most_similar = [(cpe[0], cpe[1])]
+                        unified_most_similar_tempo = set(most_similar)
+                        unified_most_similar_final |= unified_most_similar_tempo
+                unified_most_similar = unified_most_similar_final
+            results[query_raw] = sorted(unified_most_similar_final, key=lambda entry: (-entry[1], entry[0]))
+
+        else:
+            query = query_raw.lower()
+            if query not in intermediate_results and (query not in alt_queries_mapping or not alt_queries_mapping[query]):
+                continue
+
+            if query not in alt_queries_mapping or not alt_queries_mapping[query]:
+                results[query_raw] = intermediate_results[query]
+            else:
+                unified_most_similar = set()
+                if most_similar[query]:
+                    unified_most_similar = set(intermediate_results[query])
+                    for alt_query in alt_queries_mapping[query]:
+                        if alt_query != query:
+                            unified_most_similar |= set(intermediate_results.get(alt_query, []))
+                # Create a dictionary to store the elements and their maximum probabilities
+                max_prob_dict = {}
+
+                for element, prob in unified_most_similar:
+                    # If the element is already in the dictionary and its probability is less than
+                    # the new probability, update the probability
+                    if element in max_prob_dict and max_prob_dict[element] < prob:
+                        max_prob_dict[element] = prob
+                    # If the element is not in the dictionary, add it
+                    elif element not in max_prob_dict:
+                        max_prob_dict[element] = prob
+
+                # Convert the dictionary into a list of tuples for the most similar unified format
+                unified_most_similar = list(max_prob_dict.items())
+                results[query_raw] = sorted(unified_most_similar, key=lambda entry: (-entry[1], entry[0]))
 
     # only return the number of requested CPEs for final results
     if count != -1:
@@ -801,12 +939,10 @@ def _search_cpes(queries_raw, count, threshold, config=None):
                 results[query] = results[query][:count]
             else:
                 results[query] = []
-            results[query]
 
     # close cursor and connection afterwards
     db_cursor.close()
     conn.close()
-
     return results
 
 
@@ -818,7 +954,7 @@ def is_cpe_equal(cpe1, cpe2):
 
     for i in range(len(cpe1)):
         if cpe1[i] != cpe2[i]:
-            if not(cpe1[i] in ('*', '-') and cpe2[i] in('*', '-')):
+            if not (cpe1[i] in ('*', '-') and cpe2[i] in ('*', '-')):
                 return False
     return True
 
@@ -857,7 +993,7 @@ def match_cpe23_to_cpe23_from_dict(cpe23_in, config=None):
             if pre_cpe_in in cpe:
                 # stitch together the found prefix and the remaining part of the original CPE
                 if cpe23_in[len(pre_cpe_in)] == ':':
-                    cpe_in_add_back = cpe23_in[len(pre_cpe_in)+1:]
+                    cpe_in_add_back = cpe23_in[len(pre_cpe_in) + 1:]
                 else:
                     cpe_in_add_back = cpe23_in[len(pre_cpe_in):]
                 new_cpe = '%s:%s' % (pre_cpe_in, cpe_in_add_back)
@@ -882,7 +1018,7 @@ def create_cpes_from_base_cpe_and_query(cpe, query):
     if len(version_parts) > 2:
         for i in range(1, len(version_parts)):
             cpe_parts = cpe.split(':')
-            cpe_parts = cpe_parts[:5] + version_parts[1:i+1] + cpe_parts[5 + i:]
+            cpe_parts = cpe_parts[:5] + version_parts[1:i + 1] + cpe_parts[5 + i:]
             new_cpes.append(':'.join(cpe_parts))
 
     # check if there is only one complex version without a distinct seperator
@@ -905,7 +1041,7 @@ def create_cpes_from_base_cpe_and_query(cpe, query):
     version_part_in_cpe = False
     for i, version in enumerate(version_parts[2:]):
         cpe_parts = cpe.split(':')
-        if version in cpe_parts[6+i:]:
+        if version in cpe_parts[6 + i:]:
             version_part_in_cpe = True
             break
 
@@ -922,7 +1058,7 @@ def is_versionless_query(query):
     version_str_match = VERSION_MATCH_CPE_CREATION_RE.search(query)
     if not version_str_match:
         return True
-    print("is_versionless_query")
+    #print("is_versionless_query")
     return False
 
 
@@ -936,7 +1072,6 @@ def create_base_cpe_if_versionless_query(cpe, query):
 
 
 def get_all_cpes(config=None):
-
     if not config:
         config = _load_config()
 
@@ -955,7 +1090,6 @@ def cpe_matches_query(cpe, query):
     """Return True if the given CPE somewhat matches the query, e.g. its version number."""
 
     check_str, bad_match = cpe[8:], False
-
     # ensure that the retrieved CPE has a number if query has a number
     if any(char.isdigit() for char in query) and not any(char.isdigit() for char in check_str):
         bad_match = True
@@ -980,7 +1114,6 @@ def cpe_matches_query(cpe, query):
             if idx_pos_ver == len(possible_version):
                 cpe_has_matching_version = True
                 break
-
         if versions_in_query and not cpe_has_matching_version:
             bad_match = True
 
@@ -1000,7 +1133,6 @@ def search_cpes(query, count=3, threshold=-1, config=None):
     if not MATCH_CPE_23_RE.match(query):
         cpes = _search_cpes([query], count=count, threshold=CPE_SEARCH_THRESHOLD_ALT, config=config)
         cpes = cpes.get(query, [])
-
         if not cpes:
             return {'cpes': [], 'pot_cpes': []}
 
@@ -1021,7 +1153,6 @@ def search_cpes(query, count=3, threshold=-1, config=None):
 
             if not any(is_cpe_equal(cpe, other[0]) for other in pot_cpes):
                 pot_cpes.append((cpe, sim))
-
         # always create related queries without version number if query is versionless
         versionless_cpe_inserts, new_idx = [], 0
         for cpe, _ in pot_cpes:
@@ -1067,7 +1198,6 @@ def search_cpes(query, count=3, threshold=-1, config=None):
             cpes = []
     else:
         pot_cpes = []
-
     return {'cpes': cpes, 'pot_cpes': pot_cpes}
 
 
@@ -1111,7 +1241,6 @@ if __name__ == "__main__":
                 print()
 
             if results[query]:
-                print(results[query][0][0])
                 if not SILENT:
                     pprint.pprint(results[query])
             else:

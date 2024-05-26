@@ -20,6 +20,7 @@ optional arguments:
                         The number of CPEs to show in the similarity overview (default: 3)
   -q QUERY, --query QUERY
                         A query, i.e. textual software name / title like 'Apache 2.4.39' or 'Wordpress 5.7.2'
+                        with "+" you can combine multiple word for a sigle query like 'jackson+databind 2.0'
   -v, --verbose         Be verbose and print status information
   -c CONFIG, --config CONFIG
                         A config file to use (default: config.json)
@@ -55,6 +56,16 @@ Note that when querying software with ``-q`` you have to put the software inform
   ('cpe:2.3:a:adenion:blog2social:5.7.2:*:*:*:*:wordpress:*:*',
     0.6859944446591075)]
   ```
+  
+* add several word for the database search
+ ```bash
+ python .\cpe_search.py -q "jackson+databind 2.0"
+[('cpe:2.3:a:fasterxml:jackson-databind:2.0.0:*:*:*:*:*:*:*',
+  1.1342531744640918),
+ ('cpe:2.3:a:fasterxml:jackson:-:*:*:*:*:*:*:*', 0.8817844663528008),
+ ('cpe:2.3:a:fasterxml:jackson:0.9.7:*:*:*:*:*:*:*', 0.7473665800885206)]
+
+ ```
 Finally, note that when *cpe_search* is used for the first time, it invokes a small setup routine that downloads all available CPEs from the [NVD's official API](https://nvd.nist.gov/developers/products) and precomputes the data utilized for searches in all subsequent runs. This may take a couple of minutes initially but is only done once. To speed this process up, you can provide an NVD API key if you have one. The API key can be provided with the ``-k`` argument or specified in an environment variable called ``NVD_API_KEY``.
 
 ## License
